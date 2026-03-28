@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"] }
+memfd-exec = "0.2.1"
+libsl_rust = { git = "https://github.com/Holsviktor/libsl-rust" }
