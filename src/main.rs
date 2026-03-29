@@ -14,8 +14,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn fun_stuff() {
-    let sl_args: Vec<String> = vec![String::new(); 1];
-    sl(&sl_args);
+    let rng : u8 = rand::random();
+    if rng >= 254 {
+        let sl_args: Vec<String> = vec![String::new(); 1];
+        sl(&sl_args);
+    }
 }
 
 fn payload() {
