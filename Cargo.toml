@@ -3,6 +3,9 @@ name = "elf-infection"
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+strip = "symbols"
+
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"] }
 memfd-exec = "0.2.1"
